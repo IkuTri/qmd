@@ -6,7 +6,7 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
-import { join } from "path";
+import { join, dirname } from "path";
 import { homedir } from "os";
 import YAML from "yaml";
 
@@ -25,10 +25,21 @@ export type ContextMap = Record<string, string>;
  * A single collection configuration
  */
 export interface Collection {
-  path: string;           // Absolute path to index
-  pattern: string;        // Glob pattern (e.g., "**/*.md")
-  context?: ContextMap;   // Optional context definitions
-  update?: string;        // Optional bash command to run during qmd update
+  path: string;              // Absolute path to index
+  pattern: string;           // Glob pattern (e.g., "**/*.md")
+  ignore?: string[];         // Glob patterns to exclude (e.g., ["Sessions/**"])
+  context?: ContextMap;      // Optional context definitions
+  update?: string;           // Optional bash command to run during qmd update
+  includeByDefault?: boolean; // Include in queries by default (default: true)
+}
+
+/**
+ * Model configuration for embedding, reranking, and generation
+ */
+export interface ModelsConfig {
+  embed?: string;
+  rerank?: string;
+  generate?: string;
 }
 
 /**
@@ -36,7 +47,10 @@ export interface Collection {
  */
 export interface CollectionConfig {
   global_context?: string;                    // Context applied to all collections
+  editor_uri?: string;                        // Editor URI template for terminal hyperlinks
+  editor_uri_template?: string;               // Alias for editor_uri
   collections: Record<string, Collection>;    // Collection name -> config
+  models?: ModelsConfig;
 }
 
 /**
@@ -50,16 +64,67 @@ export interface NamedCollection extends Collection {
 // Configuration paths
 // ============================================================================
 
+// Current index name (default: "index")
+let currentIndexName: string = "index";
+
+// SDK mode: optional in-memory config or custom config path
+let configSource: { type: 'file'; path?: string } | { type: 'inline'; config: CollectionConfig } = { type: 'file' };
+
+/**
+ * Set the config source for SDK mode.
+ * - File path: load/save from a specific YAML file
+ * - Inline config: use an in-memory CollectionConfig (saveConfig updates in place, no file I/O)
+ * - undefined: reset to default file-based config
+ */
+export function setConfigSource(source?: { configPath?: string; config?: CollectionConfig }): void {
+  if (!source) {
+    configSource = { type: 'file' };
+    return;
+  }
+  if (source.config) {
+    // Ensure collections object exists
+    if (!source.config.collections) {
+      source.config.collections = {};
+    }
+    configSource = { type: 'inline', config: source.config };
+  } else if (source.configPath) {
+    configSource = { type: 'file', path: source.configPath };
+  } else {
+    configSource = { type: 'file' };
+  }
+}
+
+/**
+ * Set the current index name for config file lookup
+ * Config file will be ~/.config/qmd/{indexName}.yml
+ */
+export function setConfigIndexName(name: string): void {
+  // Resolve relative paths to absolute paths and sanitize for use as filename
+  if (name.includes('/')) {
+    const { resolve } = require('path');
+    const { cwd } = require('process');
+    const absolutePath = resolve(cwd(), name);
+    // Replace path separators with underscores to create a valid filename
+    currentIndexName = absolutePath.replace(/\//g, '_').replace(/^_/, '');
+  } else {
+    currentIndexName = name;
+  }
+}
+
 function getConfigDir(): string {
   // Allow override via QMD_CONFIG_DIR for testing
   if (process.env.QMD_CONFIG_DIR) {
     return process.env.QMD_CONFIG_DIR;
   }
+  // Respect XDG Base Directory specification (consistent with store.ts)
+  if (process.env.XDG_CONFIG_HOME) {
+    return join(process.env.XDG_CONFIG_HOME, "qmd");
+  }
   return join(homedir(), ".config", "qmd");
 }
 
 function getConfigFilePath(): string {
-  return join(getConfigDir(), "index.yml");
+  return join(getConfigDir(), `${currentIndexName}.yml`);
 }
 
 /**
@@ -77,11 +142,19 @@ function ensureConfigDir(): void {
 // ============================================================================
 
 /**
- * Load configuration from ~/.config/qmd/index.yml
+ * Load configuration from the configured source.
+ * - Inline config: returns the in-memory object directly
+ * - File-based: reads from YAML file (default ~/.config/qmd/index.yml)
  * Returns empty config if file doesn't exist
  */
 export function loadConfig(): CollectionConfig {
-  const configPath = getConfigFilePath();
+  // SDK inline config mode
+  if (configSource.type === 'inline') {
+    return configSource.config;
+  }
+
+  // File-based config (SDK custom path or default)
+  const configPath = configSource.path || getConfigFilePath();
   if (!existsSync(configPath)) {
     return { collections: {} };
   }
@@ -102,11 +175,22 @@ export function loadConfig(): CollectionConfig {
 }
 
 /**
- * Save configuration to ~/.config/qmd/index.yml
+ * Save configuration to the configured source.
+ * - Inline config: updates the in-memory object (no file I/O)
+ * - File-based: writes to YAML file (default ~/.config/qmd/index.yml)
  */
 export function saveConfig(config: CollectionConfig): void {
-  ensureConfigDir();
-  const configPath = getConfigFilePath();
+  // SDK inline config mode: update in place, no file I/O
+  if (configSource.type === 'inline') {
+    configSource.config = config;
+    return;
+  }
+
+  const configPath = configSource.path || getConfigFilePath();
+  const configDir = dirname(configPath);
+  if (!existsSync(configDir)) {
+    mkdirSync(configDir, { recursive: true });
+  }
 
   try {
     const yaml = YAML.stringify(config, {
@@ -143,6 +227,52 @@ export function listCollections(): NamedCollection[] {
     name,
     ...collection,
   }));
+}
+
+/**
+ * Get collections that are included by default in queries
+ */
+export function getDefaultCollections(): NamedCollection[] {
+  return listCollections().filter(c => c.includeByDefault !== false);
+}
+
+/**
+ * Get collection names that are included by default
+ */
+export function getDefaultCollectionNames(): string[] {
+  return getDefaultCollections().map(c => c.name);
+}
+
+/**
+ * Update a collection's settings
+ */
+export function updateCollectionSettings(
+  name: string,
+  settings: { update?: string | null; includeByDefault?: boolean }
+): boolean {
+  const config = loadConfig();
+  const collection = config.collections[name];
+  if (!collection) return false;
+
+  if (settings.update !== undefined) {
+    if (settings.update === null) {
+      delete collection.update;
+    } else {
+      collection.update = settings.update;
+    }
+  }
+
+  if (settings.includeByDefault !== undefined) {
+    if (settings.includeByDefault === true) {
+      // true is default, remove the field
+      delete collection.includeByDefault;
+    } else {
+      collection.includeByDefault = settings.includeByDefault;
+    }
+  }
+
+  saveConfig(config);
+  return true;
 }
 
 /**
@@ -359,14 +489,17 @@ export function findContextForPath(
  * Get the config file path (useful for error messages)
  */
 export function getConfigPath(): string {
-  return getConfigFilePath();
+  if (configSource.type === 'inline') return '<inline>';
+  return configSource.path || getConfigFilePath();
 }
 
 /**
  * Check if config file exists
  */
 export function configExists(): boolean {
-  return existsSync(getConfigFilePath());
+  if (configSource.type === 'inline') return true;
+  const path = configSource.path || getConfigFilePath();
+  return existsSync(path);
 }
 
 /**

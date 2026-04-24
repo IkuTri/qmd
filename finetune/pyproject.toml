@@ -16,8 +16,15 @@ dependencies = [
   "gguf",
   "sentencepiece",
   "nvidia-ml-py",
-  "dspy-ai>=3.1.2",
+  "pydantic>=2.0",
 ]
 
 [dependency-groups]
 dev = []
+
+[tool.uv]
+constraint-dependencies = [
+  "authlib>=1.6.9",
+  "aiohttp>=3.13.4",
+  "cryptography>=46.0.7",
+]
