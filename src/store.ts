@@ -444,10 +444,10 @@ export function getRelativePathFromPrefix(path: string, prefix: string): string 
  */
 export function expandPath(path: string): string {
   if (path.startsWith('~/')) {
-    return HOME + path.slice(1);
+    return homedir() + path.slice(1);
   }
   if (path === '~') {
-    return HOME;
+    return homedir();
   }
   return path;
 }
