@@ -94,12 +94,13 @@
       "tree-sitter-typescript"
     ],
     "overrides": {
-      "hono": ">=4.12.18",
+      "hono": ">=4.12.25",
       "simple-git": ">=3.36.0",
       "fast-uri": ">=3.1.2",
       "postcss": ">=8.5.10",
       "ip-address": ">=10.1.1",
-      "qs": ">=6.15.2"
+      "qs": ">=6.15.2",
+      "tar": ">=7.5.16"
     }
   },
   "peerDependencies": {

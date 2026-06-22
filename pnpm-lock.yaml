@@ -5,12 +5,13 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  hono: '>=4.12.18'
+  hono: '>=4.12.25'
   simple-git: '>=3.36.0'
   fast-uri: '>=3.1.2'
   postcss: '>=8.5.10'
   ip-address: '>=10.1.1'
   qs: '>=6.15.2'
+  tar: '>=7.5.16'
 
 importers:
 
@@ -247,7 +248,7 @@ packages:
     resolution: {integrity: sha512-TsQLe4i2gvoTtrHje625ngThGBySOgSK3Xo2XRYOdqGN1teR8+I7vchQC46uLJi8OF62YTYA3AhSpumtkhsaKQ==}
     engines: {node: '>=18.14.1'}
     peerDependencies:
-      hono: '>=4.12.18'
+      hono: '>=4.12.25'
 
   '@huggingface/jinja@0.5.6':
     resolution: {integrity: sha512-MyMWyLnjqo+KRJYSH7oWNbsOn5onuIvfXYPcc0WOGxU0eHUV7oAYUoQTl2BMdu7ml+ea/bu11UM+EshbeHwtIA==}
@@ -1005,8 +1006,8 @@ packages:
     resolution: {integrity: sha512-0hJU9SCPvmMzIBdZFqNPXWa6dqh7WdH0cII9y+CyS8rG3nL48Bclra9HmKhVVUHyPWNH5Y7xDwAB7bfgSjkUMQ==}
     engines: {node: '>= 0.4'}
 
-  hono@4.12.19:
-    resolution: {integrity: sha512-xa3eYXYXx68XTT4hZ7dRzsXBhaq85ToSrlUJNoR0gwz/1Ap/CNwX47wfvV7pc/xWhjKVVkLT7zBJy8chhNguqQ==}
+  hono@4.12.26:
+    resolution: {integrity: sha512-uyZtpnYxM9CmQ7QsQknM4zN8EftNqhON1qYeIKM0Se67CCEe2c44xyGURwB0axX2fBDu1dqHrHAc1hmNT8ITkw==}
     engines: {node: '>=16.9.0'}
 
   http-errors@2.0.1:
@@ -1539,8 +1540,8 @@ packages:
     resolution: {integrity: sha512-ujeqbceABgwMZxEJnk2HDY2DlnUZ+9oEcb1KzTVfYHio0UE6dG71n60d8D2I4qNvleWrrXpmjpt7vZeF1LnMZQ==}
     engines: {node: '>=6'}
 
-  tar@7.5.13:
-    resolution: {integrity: sha512-tOG/7GyXpFevhXVh8jOPJrmtRpOTsYqUIkVdVooZYJS/z8WhfQUX8RJILmeuJNinGAMSu1veBr4asSHFt5/hng==}
+  tar@7.5.16:
+    resolution: {integrity: sha512-56adEpPMouktRlBLXiaYFFzZ/3+JXa8P9n7WbR+ibIjtviN55mEaOkiysCnPnWm+7kkui1Dn8J9l+g6zV8731w==}
     engines: {node: '>=18'}
 
   tinybench@2.9.0:
@@ -1866,9 +1867,9 @@ snapshots:
   '@esbuild/win32-x64@0.27.7':
     optional: true
 
-  '@hono/node-server@1.19.13(hono@4.12.19)':
+  '@hono/node-server@1.19.13(hono@4.12.26)':
     dependencies:
-      hono: 4.12.19
+      hono: 4.12.26
 
   '@huggingface/jinja@0.5.6': {}
 
@@ -1888,7 +1889,7 @@ snapshots:
 
   '@modelcontextprotocol/sdk@1.29.0(zod@4.2.1)':
     dependencies:
-      '@hono/node-server': 1.19.13(hono@4.12.19)
+      '@hono/node-server': 1.19.13(hono@4.12.26)
       ajv: 8.18.0
       ajv-formats: 3.0.1(ajv@8.18.0)
       content-type: 1.0.5
@@ -1898,7 +1899,7 @@ snapshots:
       eventsource-parser: 3.0.6
       express: 5.2.1
       express-rate-limit: 8.3.2(express@5.2.1)
-      hono: 4.12.19
+      hono: 4.12.26
       jose: 6.2.2
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
@@ -2266,7 +2267,7 @@ snapshots:
       node-api-headers: 1.8.0
       rc: 1.2.8
       semver: 7.7.4
-      tar: 7.5.13
+      tar: 7.5.16
       url-join: 4.0.1
       which: 6.0.1
       yargs: 17.7.2
@@ -2537,7 +2538,7 @@ snapshots:
     dependencies:
       function-bind: 1.1.2
 
-  hono@4.12.19: {}
+  hono@4.12.26: {}
 
   http-errors@2.0.1:
     dependencies:
@@ -3128,7 +3129,7 @@ snapshots:
       inherits: 2.0.4
       readable-stream: 3.6.2
 
-  tar@7.5.13:
+  tar@7.5.16:
     dependencies:
       '@isaacs/fs-minipass': 4.0.1
       chownr: 3.0.0
