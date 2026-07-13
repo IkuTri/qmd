@@ -768,6 +768,10 @@ const CJK_CHAR_PATTERN = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\
 const CJK_RUN_PATTERN = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]+/gu;
 const FTS_CJK_NORMALIZED_VERSION = "1";
 
+// SQLite user_version stamp for the one-time schema DDL in initializeDatabase.
+// Bump when the DDL block changes so existing DBs re-run it once.
+const QMD_SCHEMA_VERSION = 1;
+
 /**
  * FTS5's unicode61 tokenizer does not segment CJK text into searchable words.
  * Normalize CJK runs by spacing every character so exact CJK queries can be
@@ -845,6 +849,21 @@ function initializeDatabase(db: Database): void {
   }
   db.exec("PRAGMA journal_mode = WAL");
   db.exec("PRAGMA foreign_keys = ON");
+  // Concurrent CLI invocations previously failed instantly with
+  // "database is locked" (e.g. `qmd status` racing `qmd collection list`).
+  db.exec("PRAGMA busy_timeout = 10000");
+
+  // Version gate: the DDL below (legacy drops, CREATEs, trigger
+  // drop/recreate) used to run on EVERY open, making nominal reads like
+  // `qmd status` acquire write locks and fail in read-only lanes. Skip it
+  // entirely when the schema is already current. Bump QMD_SCHEMA_VERSION
+  // whenever anything inside this block changes, or the change will not
+  // reach existing databases.
+  const uv = (db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version;
+  if (uv === QMD_SCHEMA_VERSION) {
+    rebuildFTSForCjkNormalization(db); // internally version-gated; pure read when current
+    return;
+  }
 
   // Drop legacy tables that are now managed in YAML
   db.exec(`DROP TABLE IF EXISTS path_contexts`);
@@ -977,6 +996,7 @@ function initializeDatabase(db: Database): void {
   `);
 
   rebuildFTSForCjkNormalization(db);
+  db.exec(`PRAGMA user_version = ${QMD_SCHEMA_VERSION}`);
 }
 
 // =============================================================================

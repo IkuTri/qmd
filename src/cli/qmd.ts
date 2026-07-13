@@ -8,6 +8,7 @@ import { parseArgs } from "util";
 import { readFileSync, readdirSync, realpathSync, statSync, existsSync, unlinkSync, writeFileSync, openSync, closeSync, mkdirSync, lstatSync, rmSync, symlinkSync, readlinkSync, copyFileSync } from "fs";
 import { createInterface } from "readline/promises";
 import {
+  isSqliteVecAvailable,
   getPwd,
   getRealPath,
   homedir,
@@ -516,6 +517,17 @@ async function showStatus(): Promise<void> {
   console.log(`  Vectors:  ${vectorCount.count} embedded`);
   if (needsEmbedding > 0) {
     console.log(`  ${c.yellow}Pending:  ${needsEmbedding} need embedding${c.reset} (run 'qmd embed')`);
+  }
+  // Say what search can actually do right now, instead of implying full
+  // hybrid readiness while vectors are absent (codex audit 2026-07-12).
+  if (!isSqliteVecAvailable()) {
+    console.log(`  ${c.yellow}Mode:     BM25-only (degraded — sqlite-vec unavailable; vsearch/query disabled)${c.reset}`);
+  } else if (vectorCount.count === 0) {
+    console.log(`  ${c.yellow}Mode:     BM25-only (degraded — no vectors yet; run 'qmd embed' to enable vsearch/query)${c.reset}`);
+  } else if (needsEmbedding > 0) {
+    console.log(`  ${c.yellow}Mode:     hybrid, partial coverage (${needsEmbedding} hashes missing vectors)${c.reset}`);
+  } else {
+    console.log(`  ${c.green}Mode:     hybrid (BM25 + vectors current)${c.reset}`);
   }
   if (mostRecent.latest) {
     const lastUpdate = new Date(mostRecent.latest);
