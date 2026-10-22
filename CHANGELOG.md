@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Security
+
+- Bound HTTP MCP and REST request bodies to 1 MiB before JSON parsing, and
+  cap MCP tool input at 10,000 elements before schema validation. Oversized
+  HTTP bodies return 413, including requests without Content-Length.
+- Update the MCP server to 2.3.0, simple-git and its argument parser to 4.0.1
+  and 2.0.1, and the test tooling to patched Vitest 4.1.12 and Vite 7.3.7.
+  Refresh security fixes in their transitive dependencies and both lockfiles.
+
 ### Added
 
 - Added Oxlint lint fence.

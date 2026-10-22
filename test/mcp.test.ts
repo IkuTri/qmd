@@ -13,6 +13,7 @@ import { unlinkSync } from "node:fs";
 import { mkdtemp, writeFile, readdir, unlink, rmdir } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { request as httpRequest } from "node:http";
 import YAML from "yaml";
 import type { CollectionConfig } from "../src/collections";
 import { setConfigIndexName } from "../src/collections";
@@ -1084,9 +1085,12 @@ describe.skipIf(!!process.env.CI)("MCP HTTP Transport", () => {
       }),
     });
     expect(res.status).toBe(200);
-    expect(res.headers.get("content-type")).toContain("application/json");
+    // The SDK's legacy fallback uses SSE even when modern responseMode is JSON.
+    expect(res.headers.get("content-type")).toContain("text/event-stream");
     expect(res.headers.get("mcp-session-id")).toBeNull();
-    const json = await res.json() as any;
+    const data = (await res.text()).split("\n").find(line => line.startsWith("data:"));
+    expect(data).toBeDefined();
+    const json = JSON.parse(data!.slice("data:".length));
     expect(json.jsonrpc).toBe("2.0");
     expect(json.id).toBe(1);
     expect(json.result.serverInfo.name).toBe("qmd");
@@ -1230,6 +1234,81 @@ describe("MCP HTTP Transport — 2026-07-28 protocol", () => {
     });
     return { status: res.status, json: await res.json(), rawHeaders: res.headers };
   }
+
+  test.each(["/mcp", "/query", "/search"])("POST %s rejects bodies over 1 MiB before parsing", async (endpoint) => {
+    const res = await fetch(`${baseUrl}${endpoint}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "x".repeat(1024 * 1024 + 1),
+    });
+    expect(res.status).toBe(413);
+    expect(await res.json()).toEqual({ error: "Request body exceeds 1048576 bytes" });
+    expect((await fetch(`${baseUrl}/health`)).status).toBe(200);
+  });
+
+  test.each(["/mcp", "/query", "/search"])("POST %s limits chunked bodies without Content-Length", async (endpoint) => {
+    const status = await new Promise<number>((resolve, reject) => {
+      const req = httpRequest(`${baseUrl}${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Transfer-Encoding": "chunked" },
+      }, (res) => {
+        res.resume();
+        res.once("end", () => resolve(res.statusCode ?? 0));
+      });
+      req.once("error", reject);
+      req.write("x".repeat(512 * 1024));
+      req.write("x".repeat(512 * 1024));
+      req.end("x");
+    });
+    expect(status).toBe(413);
+    expect((await fetch(`${baseUrl}/health`)).status).toBe(200);
+  });
+
+  test.each(["/mcp", "/query", "/search"])("POST %s accepts a valid body exactly 1 MiB long", async (endpoint) => {
+    const body = endpoint === "/mcp"
+      ? JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: { _meta: mcp2026Meta } })
+      : JSON.stringify({ searches: [{ type: "lex", query: "project" }], rerank: false });
+    const res = await fetch(`${baseUrl}${endpoint}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+        "MCP-Protocol-Version": MCP_2026,
+        "Mcp-Method": "tools/list",
+      },
+      body: body + " ".repeat(1024 * 1024 - Buffer.byteLength(body)),
+    });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    if (endpoint === "/mcp") expect(json.result.tools.length).toBeGreaterThan(0);
+    else expect(Array.isArray(json.results)).toBe(true);
+  });
+
+  test.each(["array", "record"])("POST /mcp rejects excessive tool input %s elements", async (inputKind) => {
+    const excess = inputKind === "array"
+      ? { collections: Array(10_001).fill("docs") }
+      : Object.fromEntries(Array.from({ length: 10_001 }, (_, index) => [`key${index}`, "value"]));
+    const { status, json } = await postMcp({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: {
+        name: "query",
+        arguments: { searches: [{ type: "lex", query: "project" }], rerank: false, ...excess },
+        _meta: mcp2026Meta,
+      },
+    }, {
+      "MCP-Protocol-Version": MCP_2026,
+      "Mcp-Method": "tools/call",
+      "Mcp-Name": "query",
+    });
+    expect(status).toBe(200);
+    expect(json.result.isError).toBe(true);
+    expect(json.result.content).toEqual([{
+      type: "text",
+      text: "Invalid arguments for tool query: arguments contain more than the maximum of 10000 elements",
+    }]);
+  });
 
   test("server/discover advertises 2026-07-28, tools, and identity", async () => {
     const { status, json, rawHeaders } = await postMcp(

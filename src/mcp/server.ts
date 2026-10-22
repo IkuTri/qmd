@@ -30,6 +30,17 @@ import { getConfigPath } from "../collections.js";
 import { enableProductionMode } from "../store.js";
 import { checkRequestOrigin, resolveOriginGuard } from "./origin-guard.js";
 
+// Bound input before JSON parsing and SDK schema validation. These tools accept
+// short search requests and document paths, not uploaded document bodies.
+const MAX_HTTP_REQUEST_BODY_BYTES = 1024 * 1024;
+const MAX_TOOL_INPUT_ELEMENTS = 10_000;
+
+class RequestBodyTooLargeError extends Error {
+  constructor() {
+    super(`Request body exceeds ${MAX_HTTP_REQUEST_BODY_BYTES} bytes`);
+  }
+}
+
 // =============================================================================
 // Types for structured content
 // =============================================================================
@@ -175,6 +186,7 @@ async function createMcpServer(store: QMDStore, inflight?: InflightGate): Promis
     { name: "qmd", version: getPackageVersion() },
     {
       instructions: await buildInstructions(store),
+      maxToolInputElements: MAX_TOOL_INPUT_ELEMENTS,
       // tools/list is static for the process lifetime; resources/read stays
       // uncacheable because the index can change under us.
       cacheHints: {
@@ -872,7 +884,7 @@ export async function startMcpHttpServer(
   // 2025-era traffic statelessly by default (`legacy: "stateless"`).
   const mcpHandler = createMcpHandler(
     () => createMcpServer(store),
-    { responseMode: "json" },
+    { responseMode: "json", maxRequestBodySize: MAX_HTTP_REQUEST_BODY_BYTES },
   );
 
   const startTime = Date.now();
@@ -931,9 +943,32 @@ export async function startMcpHttpServer(
 
   // Helper to collect request body
   async function collectBody(req: IncomingMessage): Promise<string> {
-    const chunks: Buffer[] = [];
-    for await (const chunk of req) chunks.push(chunk as Buffer);
-    return Buffer.concat(chunks).toString();
+    const contentLength = Number(req.headers["content-length"]);
+    if (contentLength > MAX_HTTP_REQUEST_BODY_BYTES) {
+      req.resume();
+      throw new RequestBodyTooLargeError();
+    }
+
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      let bodyBytes = 0;
+      const onData = (chunk: Buffer) => {
+        bodyBytes += chunk.length;
+        if (bodyBytes > MAX_HTTP_REQUEST_BODY_BYTES) {
+          chunks.length = 0;
+          req.off("data", onData);
+          // Discard the remaining input while allowing the caller to send 413.
+          // Breaking a stream's async iterator would destroy the socket first.
+          req.resume();
+          reject(new RequestBodyTooLargeError());
+          return;
+        }
+        chunks.push(chunk);
+      };
+      req.on("data", onData);
+      req.once("end", () => resolve(Buffer.concat(chunks).toString()));
+      req.once("error", reject);
+    });
   }
 
   const host = options.host ?? process.env.QMD_HOST ?? "localhost";
@@ -1071,6 +1106,11 @@ export async function startMcpHttpServer(
       nodeRes.writeHead(404);
       nodeRes.end("Not Found");
     } catch (err) {
+      if (err instanceof RequestBodyTooLargeError) {
+        nodeRes.writeHead(413, { "Content-Type": "application/json", Connection: "close" });
+        nodeRes.end(JSON.stringify({ error: err.message }));
+        return;
+      }
       console.error("HTTP handler error:", err);
       nodeRes.writeHead(500);
       nodeRes.end("Internal Server Error");

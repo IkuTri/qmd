@@ -57,7 +57,7 @@
     "url": "https://github.com/tobi/qmd/issues"
   },
   "dependencies": {
-    "@modelcontextprotocol/server": "2.0.0",
+    "@modelcontextprotocol/server": "2.3.0",
     "better-sqlite3": "^13.0.3",
     "fast-glob": "3.3.3",
     "node-llama-cpp": "3.20.0",
@@ -83,18 +83,28 @@
     "@types/better-sqlite3": "7.6.13",
     "oxlint": "1.78.0",
     "tsx": "4.23.12",
-    "vitest": "3.2.7"
+    "vitest": "4.1.12",
+    "vite": "7.3.7"
   },
   "overrides": {
     "hono": ">=4.12.25",
     "@hono/node-server": ">=1.19.13 <2",
-    "simple-git": ">=3.36.0",
-    "fast-uri": ">=3.1.2",
-    "postcss": ">=8.5.10",
-    "ip-address": ">=10.1.1",
-    "qs": ">=6.15.2",
-    "tar": ">=7.5.16",
-    "ajv": ">=8.18.0"
+    "simple-git": "4.0.1",
+    "@simple-git/argv-parser": "2.0.1",
+    "fast-uri": ">=3.1.8 <4",
+    "postcss": "8.5.23",
+    "ip-address": ">=10.3.1 <11",
+    "qs": ">=6.16.0 <7",
+    "tar": ">=7.5.22 <8",
+    "ajv": ">=8.18.0 <9",
+    "vite": "7.3.7",
+    "rollup": ">=4.59.0 <5",
+    "source-map-js": "1.2.2",
+    "nanoid@^3": "3.3.18",
+    "nanoid@^5": "5.1.16",
+    "picomatch@^2": "2.3.2",
+    "picomatch@^4": "4.0.5",
+    "esbuild": "0.28.1"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
@@ -108,12 +118,21 @@
     ],
     "overrides": {
       "hono": ">=4.12.25",
-      "simple-git": ">=3.36.0",
-      "fast-uri": ">=3.1.2",
-      "postcss": ">=8.5.10",
-      "ip-address": ">=10.1.1",
-      "qs": ">=6.15.2",
-      "tar": ">=7.5.16"
+      "simple-git": "4.0.1",
+      "@simple-git/argv-parser": "2.0.1",
+      "fast-uri": ">=3.1.8 <4",
+      "postcss": "8.5.23",
+      "ip-address": ">=10.3.1 <11",
+      "qs": ">=6.16.0 <7",
+      "tar": ">=7.5.22 <8",
+      "vite": "7.3.7",
+      "rollup": ">=4.59.0 <5",
+      "source-map-js": "1.2.2",
+      "nanoid@^3": "3.3.18",
+      "nanoid@^5": "5.1.16",
+      "picomatch@^2": "2.3.2",
+      "picomatch@^4": "4.0.5",
+      "esbuild": "0.28.1"
     }
   },
   "peerDependencies": {
